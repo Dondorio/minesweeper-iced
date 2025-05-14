@@ -1,0 +1,13 @@
+[package]
+name = "minesweeper-iced"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+fira-sans = []
+
+[dependencies]
+colored = "3.0.0"
+iced = { version = "0.13.1", features = ["advanced", "image", "smol"] }
+include_dir = "0.7.4"
+rand = "0.9.0"

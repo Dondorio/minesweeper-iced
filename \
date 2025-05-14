@@ -1,0 +1,250 @@
+mod handles;
+mod messages;
+mod minesweeper;
+
+use iced::{Element, widget};
+use messages::BoardMessage;
+
+#[derive(Debug, Clone)]
+struct App {
+    pub board: minesweeper::Board,
+    pub show_modal: bool,
+    // pub time: u32,
+    // pub difficulty: String,
+}
+
+impl App {
+    fn new() -> Self {
+        Self {
+            board: minesweeper::Board::new(8, 8, 10).unwrap(),
+            show_modal: false,
+            // time: 0,
+            // difficulty: "Beginner".to_string(),
+        }
+    }
+
+    fn title(&self) -> String {
+        // return the title of the app
+        // String::from(format!("Mineweeper - {}", self.difficulty))
+        String::from("Mineweeper")
+    }
+
+    fn theme(&self) -> iced::Theme {
+        // return the theme of the app
+        iced::Theme::TokyoNight
+    }
+
+    fn update(&mut self, message: BoardMessage) -> iced::Task<BoardMessage> {
+        match message {
+            BoardMessage::CellLeftClick(pos_x, pos_y) => {
+                let pos = &minesweeper::Vec2 { x: pos_x, y: pos_y };
+                let cell = self.board.get_mut_cell(pos);
+
+                if let minesweeper::CellPressedState::Pressed = cell.pressed_state {
+                    self.board.uncover(pos);
+                }
+
+                self.board
+                    .get_mut_cell(&minesweeper::Vec2 { x: pos_x, y: pos_y })
+                    .pressed_state = minesweeper::CellPressedState::None;
+            }
+            BoardMessage::CellRightClick(pos_x, pos_y) => {
+                self.board
+                    .get_mut_cell(&minesweeper::Vec2 { x: pos_x, y: pos_y })
+                    .toggle_flagged();
+            }
+
+            BoardMessage::OpenNewGameModal => {
+                self.show_modal = true;
+            }
+
+            BoardMessage::SubmitNewGame(size_x, size_y, bomb_count) => {
+                self.board = minesweeper::Board::new(size_x, size_y, bomb_count).unwrap();
+                self.show_modal = false;
+            }
+
+            BoardMessage::CellHover(pos_x, pos_y) => {
+                self.board
+                    .get_mut_cell(&minesweeper::Vec2 { x: pos_x, y: pos_y })
+                    .pressed_state = minesweeper::CellPressedState::Hovered;
+            }
+            BoardMessage::CellUnhover(pos_x, pos_y) => {
+                self.board
+                    .get_mut_cell(&minesweeper::Vec2 { x: pos_x, y: pos_y })
+                    .pressed_state = minesweeper::CellPressedState::None;
+            }
+
+            BoardMessage::CellPress(pos_x, pos_y) => {
+                self.board
+                    .get_mut_cell(&minesweeper::Vec2 { x: pos_x, y: pos_y })
+                    .pressed_state = minesweeper::CellPressedState::Pressed;
+            }
+        }
+        iced::Task::none()
+    }
+
+    fn view(&self) -> iced::Element<'_, BoardMessage> {
+        fn top_bar_style(_theme: &iced::widget::Theme) -> iced::widget::container::Style {
+            iced::widget::container::Style {
+                background: Some(iced::color!(0x828282).into()),
+                border: iced::border::rounded(0),
+                ..iced::widget::container::Style::default()
+            }
+        }
+
+        let image_name = format!(
+            "{}.png",
+            match self.board.state {
+                minesweeper::GameState::Playing => "playing",
+                minesweeper::GameState::Lost => "lost",
+                minesweeper::GameState::Won => "won",
+            }
+        );
+
+        let top_bar: iced::widget::Row<'_, messages::BoardMessage> = iced::widget::row![
+            iced::widget::container(
+                iced::widget::container(
+                    iced::widget::mouse_area(
+                        iced::widget::image(handles::get_handle(image_name))
+                            .filter_method(iced::advanced::image::FilterMethod::Nearest)
+                            .height(50)
+                            .width(50)
+                    )
+                    .on_release(BoardMessage::OpenNewGameModal)
+                )
+                .height(50)
+                .width(50)
+            )
+            .style(top_bar_style)
+            .width(iced::Length::Fill)
+            .center_x(iced::Length::Fill)
+        ]
+        .width(iced::Length::Fill);
+
+        let grid = iced::widget::container(self.cell_grid_element())
+            .width(iced::Length::Fill)
+            .center_x(iced::Length::Fill);
+
+        let mut content = widget::column![top_bar, grid].spacing(1);
+
+        let difficulty_text_size = 75;
+
+        if self.show_modal {
+            content = iced::widget::column![
+                iced::widget::row![
+                    iced::widget::container(
+                        iced::widget::mouse_area(
+                            iced::widget::text("Beginner")
+                                .width(iced::Length::Fill)
+                                .height(iced::Length::Fill)
+                                .center()
+                                .size(difficulty_text_size)
+                        )
+                        .on_release(BoardMessage::SubmitNewGame(8, 8, 10))
+                    )
+                    .center_x(iced::Length::Fill)
+                    .center_y(iced::Length::Fill)
+                    .style(top_bar_style),
+                    iced::widget::container(
+                        iced::widget::mouse_area(
+                            iced::widget::text("Intermediate")
+                                .width(iced::Length::Fill)
+                                .height(iced::Length::Fill)
+                                .center()
+                                .size(difficulty_text_size)
+                        )
+                        .on_release(BoardMessage::SubmitNewGame(16, 16, 40))
+                    )
+                    .center_x(iced::Length::Fill)
+                    .center_y(iced::Length::Fill)
+                    .style(top_bar_style),
+                    iced::widget::container(
+                        iced::widget::mouse_area(
+                            iced::widget::text("Expert")
+                                .width(iced::Length::Fill)
+                                .height(iced::Length::Fill)
+                                .center()
+                                .size(difficulty_text_size)
+                        )
+                        .on_release(BoardMessage::SubmitNewGame(30, 16, 99))
+                    )
+                    .center_x(iced::Length::Fill)
+                    .center_y(iced::Length::Fill)
+                    .style(top_bar_style)
+                ]
+                .height(150)
+                .spacing(10)
+            ]
+        };
+
+        let img = iced::widget::image(handles::get_handle("bomb.png"))
+            .filter_method(iced::advanced::image::FilterMethod::Nearest)
+            .height(50)
+            .width(50);
+
+        content = content.push(img);
+
+        widget::container(content)
+            .width(iced::Length::Fill)
+            .height(iced::Length::Fill)
+            .into()
+    }
+
+    fn cell_grid_element(&self) -> Element<'_, BoardMessage> {
+        let mut grid = widget::Row::new();
+        for row in 0..self.board.size_x {
+            let mut column_element: widget::Column<BoardMessage> = widget::Column::new();
+
+            for column in 0..self.board.size_y {
+                let pos = minesweeper::Vec2 { x: row, y: column };
+                let cell = self.board.get_cell(&pos);
+                let size: f32 = 50.0;
+
+                let image_name = match cell.state {
+                    minesweeper::CellState::Hidden => match cell.pressed_state {
+                        minesweeper::CellPressedState::None => "hidden",
+                        minesweeper::CellPressedState::Hovered => "hidden-hovered",
+                        minesweeper::CellPressedState::Pressed => "hidden-pressed",
+                    },
+                    minesweeper::CellState::Flagged => "flag",
+                    minesweeper::CellState::Uncovered => match cell.cell_type {
+                        minesweeper::CellType::Bomb => match cell.is_exploded {
+                            false => "bomb",
+                            true => "bomb-exploded",
+                        },
+                        minesweeper::CellType::Safe => &cell.adjacent_bomb_count.to_string(),
+                        minesweeper::CellType::Empty(..) => "empty",
+                    },
+                };
+
+                let cell_element: iced::Element<'_, messages::BoardMessage> =
+                    iced::widget::container(
+                        iced::widget::mouse_area(
+                            iced::widget::image(format!("resources/{}.png", image_name))
+                                .filter_method(iced::advanced::image::FilterMethod::Nearest)
+                                .height(size)
+                                .width(size),
+                        )
+                        .on_enter(BoardMessage::CellHover(row, column))
+                        .on_exit(BoardMessage::CellUnhover(row, column))
+                        .on_press(BoardMessage::CellPress(row, column))
+                        .on_release(BoardMessage::CellLeftClick(row, column))
+                        .on_right_release(BoardMessage::CellRightClick(row, column)),
+                    )
+                    .height(size)
+                    .width(size)
+                    .into();
+
+                column_element = column_element.push(cell_element);
+            }
+            grid = grid.push(column_element);
+        }
+        grid.into()
+    }
+}
+
+fn main() -> iced::Result {
+    iced::application(App::title, App::update, App::view)
+        .theme(App::theme)
+        .run_with(|| (App::new(), iced::Task::none()))
+}
